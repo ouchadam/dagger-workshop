@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Title</title>
+    <meta charset="utf-8">
+    <style>
+        @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+        @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+        @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+        body {
+            font-family: 'Droid Serif';
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: 'Yanone Kaffeesatz';
+            font-weight: normal;
+        }
+
+        .remark-code,
+        .remark-inline-code {
+            font-family: 'Ubuntu Mono';
+        }
+
+        /* theme class for slide pages */
+        .inverse {
+            background: hsl(0, 0%, 15%);
+            color: hsl(0, 5%, 75%);
+        }
+
+        .inverse h1 {
+            text-align: left;
+            color: hsl(0, 5%, 95%);
+            line-height: 0.8em;
+            font-size: 3em;
+
+        }
+
+        .inverse h2 {
+            color: hsl(0, 5%, 90%);
+            line-height: 0.8em;
+        }
+
+        .inverse a {
+            color: hsl(330, 75%, 50%);
+            text-decoration: none;
+        }
+
+        .superBigText h1 {
+            text-align: center;
+            font-size: 6.5em;
+        }
+
+        .inverse code {
+            color: hsl(330, 75%, 100%);
+            font-size: 1.5em;
+        }
+
+        /* custom styles for inline span notation */
+        span.red {
+            color: hsl(0, 90%, 50%);
+        }
+
+        /* print filling whole paper */
+        @media print {
+            .remark-slide-scaler {
+                left: 5vw !important;
+                width: 90vw !important;
+                top: 5vh !important;
+                height: 90vh !important;
+                transform: scale(1) !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <textarea id="source">
+
+class: left, inverse
+layout: true
+---
+
+class: middle
+
+# Dagger workshop
+### https://github.com/ouchadam/dagger-workshop       
+
+---
+
+#What is Dagger?
+
+<br/>
+
+--
+### - Service locator
+
+--
+### - DI Injection API
+
+--
+### - Binding generator
+
+---
+# Service locator pattern
+
+<br/>
+<br/>
+
+```kotlin
+fun getSystemService(key: String): Object
+
+...
+
+val service = context.getSystemService(Context.ALARM_SERVICE)
+```
+---
+# Service locator pattern
+
+<br/>
+<br/>
+
+```kotlin
+class Coffee
+class CoffeeMachine(coffee: Coffee)
+
+val serviceLocator = mapOf<String, () -> Any>(
+    "coffee" to { Coffee() },
+    "coffeeMachine" to { 
+        CoffeMachine(serviceLocator["coffee"]) 
+    }
+)
+
+val coffeeMachine = serviceLocator["coffeeMachine"]
+```
+---
+
+# DI Injection API
+
+--
+```kotlin
+class CoffeeMachine @Inject constructor(
+    val coffee: Coffee
+)
+```
+
+<br/>
+
+--
+```kotlin
+class CoffeeMachine {
+  @Inject lateinit var coffee: Coffee
+
+  fun bind() {
+      inject(this)
+  }
+}
+```
+
+---
+
+# DI Injection API
+
+<br/>
+
+```kotlin
+class CoffeeMachine {
+  lateinit var coffee: Coffee
+
+  @Inject
+  fun coffeeBinding(coffee: Coffee) {
+    this.coffee = coffee
+  }
+}
+```
+
+---
+
+# Bindings 
+
+--
+
+<br/>
+```kotlin
+class Injector {
+
+    private val locator: ServiceLocator = ServiceLocator()
+
+    fun inject(coffeeShop: CoffeeShop) {
+        coffeeShop.coffeeMachine = locator.get("coffeeMachine")
+    }
+
+}
+```
+---
+
+# Bindings 
+
+<br/>
+
+```kotlin
+class CoffeeShop {
+
+    lateinit var coffeeMachine: CoffeeMachine
+
+    init {
+        Injector().inject(this)
+    }
+
+}
+```
+
+---
+
+# Dagger
+
+--
+
+<br/>
+
+```kotlin
+class CoffeeMachine @Inject constructor(val coffee: Coffee)
+```
+
+--
+
+```kotlin
+class Coffee @Inject constructor()
+
+```
+
+---
+
+# Dagger
+
+<br/>
+
+```kotlin
+@Component
+interface MyComponent {
+    fun inject(coffeeShop: CoffeeShop)
+}
+```
+
+---
+
+# Dagger
+
+```kotlin
+class CoffeeShop {
+
+    @Inject
+    lateinit var coffeeMachine: CoffeeMachine
+
+    init {
+        DaggerMyComponent.create()
+            .inject(this)
+    }
+
+}
+```
+
+---
+
+# Dagger generated 
+
+```java
+public final class DaggerMyComponent implements MyComponent {
+    ...
+
+    @Override
+    public void inject(CoffeeShop instance) {
+        CoffeeShop_MembersInjector.injectCoffeeMachine(
+            instance, 
+            getCoffeeMachine()
+        );
+    }
+
+    private CoffeeMachine getCoffeeMachine() {
+        return new CoffeeMachine(new Coffee());
+    }
+}
+```
+
+---
+
+# Dagger generated 
+
+<br/>
+
+```java
+public static void injectCoffeeMachine(
+    CoffeeShop instance, CoffeeMachine coffeeMachine) {
+    instance.coffeeMachine = coffeeMachine;
+}
+```
+
+---
+
+# Android? 
+
+--
+
+<br/>
+
+### - Context isn't under our control 
+
+### - Must provide it to the dependency graph
+
+---
+
+# Android? 
+
+```kotlin
+class MyApplication : Application() {
+    lateinit var serviceLocator: ServiceLocator
+
+    fun onCreate() {
+        super.onCreate()
+        serviceLocator = ServiceLocator(this)
+    }
+}
+```
+
+---
+
+# Android? 
+
+```kotlin
+class ActivityServiceLocator(
+    private val activity: Activity,
+    private val serviceLocator: ServiceLocator
+) {
+
+    private val providers = mapOf<String, () -> Any>(
+        "resources" to { activity.resources },
+        ...
+    )
+
+    fun get(key: String) = providers[key] ?: serviceLocator.get(key)
+
+}
+```
+
+---
+
+# Android? 
+
+<br/>
+
+```kotlin
+class MyActivity : Activity() {
+
+    lateinit var resources: Resources
+
+    fun onCreate(bundle: Bundle?) {
+        resources = 
+            ActivityServiceLocator(this, application.serviceLocator)
+                .get("resources")
+    }
+}
+```
+
+---
+
+# Dagger (without dagger-android)
+
+--
+
+```kotlin
+@Subcomponent(modules = [MyActivityModule::class])
+interface MyActivitySubComponent {
+    fun inject(myActivity: MyActivity)
+}
+```
+
+--
+<br/>
+
+```kotlin
+@Module
+class MyActivityModule(private val myActivity: MyActivity) {
+    @Provides
+    fun provideResources() = myActivity.resources
+}
+```
+
+---
+
+# Dagger (without dagger-android)
+
+<br/>
+
+```kotlin
+@Component
+interface MyComponent {
+    ...
+    fun from(module: MyActivityModule): MyActivitySubComponent
+}
+```
+
+---
+
+# Dagger (without dagger-android)
+
+<br/>
+
+```kotlin
+class MyActivity : Activity() {
+
+    @Inject
+    lateinit var resources: Resources 
+
+    fun onCreate(bundle: Bundle?) {
+        application.component
+            .from(MyActivityModule(this))
+            .inject(this)
+    }
+}
+```
+
+---
+
+# dagger-android
+
+<br/>
+
+--
+
+### - Reduces boilerplate
+
+--
+
+### - Removes injector knowledge from the injectees
+
+--
+
+### - Multi module enabled injector pattern
+
+---
+
+# dagger-android
+
+```kotlin
+@Component(modules = [MyActivityBindingModule::class])
+interface MyComponent {
+    ...
+}
+```
+
+--
+
+```kotlin
+@Module
+abstract class MyActivityBindingModule {
+    @ContributesAndroidInjector
+    abstract activity(): MyActivity
+
+    @ContributesAndroidInjector
+    abstract fragment(): MyFragment
+}
+```
+
+---
+
+# dagger-android 
+## Missing injector factories
+
+<br/>
+
+```kotlin
+class MyActivity : Activity() {
+    fun onCreate(bundle: Bundle?) {
+        MyFragment() // all good
+        ...
+    }
+}
+```
+
+---
+
+# dagger-android 
+## Missing injector factories
+
+<br/>
+
+```kotlin
+class AnotherActivity : Activity() {
+    fun onCreate(bundle: Bundle?) {
+        MyFragment() // Missing injector runtime error
+        ...
+    }
+}
+```
+
+---
+
+# dagger-android 
+## Missing injector factories
+
+<br/>
+
+### Untyped 
+
+```java
+public static void inject(Activity activity) {
+    AndroidInjector<Activity> activityInjector =
+        ((HasActivityInjector) application).activityInjector();
+    activityInjector.inject(activity);
+}
+```
+
+---
+
+# dagger-android 
+
+```kotlin
+@Module(includes = [BindingModule::class])
+abstract class FeatureModule {
+    @Binds
+    abstract fun featureRouter(router: FeatureRouter): Router
+}
+```
+
+```kotlin
+class FeatureRouter @Inject constructor() : Router {
+    fun get() = MyFragment()
+}
+```
+
+---
+
+# dagger-android 
+
+<br/>
+
+```kotlin
+class AnotherActivity : Activity() {
+
+    @Inject lateinit var router : Router
+
+    fun onCreate(bundle: Bundle?) {
+        ...
+        router.get()
+    }
+}
+```
+
+---
+
+# Honorable mentions
+
+--
+
+### - Prefer @Bind over @Provide for super typing
+
+--
+
+### - Use Builders and @BindsInstance for graph construction
+
+--
+
+### - Use ActivityScope where the Activity Context is involved (Activity singletons)
+
+--
+
+### - Optimise @Provides with static modules (Companion objects)
+
+
+    </textarea>
+
+    <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS_HTML&delayStartupUntil=configured"
+        type="text/javascript"></script>
+    <script>
+        var slideshow = remark.create(
+            {
+                ratio: "16:9",
+                countIncrementalSlides: false,
+                slideNumberFormat: '',
+                navigation: {
+                    scroll: false
+                },
+                highlightStyle: 'ocean'
+            }
+        );
+        MathJax.Hub.Config({
+            tex2jax: {
+                skipTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        });
+
+        MathJax.Hub.Configured();
+    </script>
+</body>
+
+</html>
